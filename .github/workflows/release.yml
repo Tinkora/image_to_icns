@@ -1,0 +1,365 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: release-${{ github.repository }}-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Reject an existing release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Verify release does not exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status="$(curl --proto '=https' --tlsv1.2 --silent --show-error \
+            --output /dev/null --write-out '%{http_code}' \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}")"
+
+          case "${status}" in
+            404) ;;
+            200)
+              printf 'Release %s already exists; release assets are immutable.\n' \
+                "${GITHUB_REF_NAME}" >&2
+              exit 1
+              ;;
+            *)
+              printf 'Unable to verify release absence: GitHub returned HTTP %s.\n' \
+                "${status}" >&2
+              exit 1
+              ;;
+          esac
+
+  validate:
+    name: Validate release metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: rustup toolchain install 1.95 --profile minimal
+
+      - name: Validate tag and release metadata
+        run: ./scripts/validate_release.sh "${GITHUB_REF_NAME}"
+
+  quality:
+    uses: ./.github/workflows/quality.yml
+    permissions:
+      contents: read
+
+  build:
+    name: Build ${{ matrix.asset }}
+    needs: [preflight, validate, quality]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            asset: image_to_icns_mcp-linux-x86_64
+            archive: image_to_icns_mcp-linux-x86_64.tar.gz
+            binary: image_to_icns_mcp
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            asset: image_to_icns_mcp-macos-arm64
+            archive: image_to_icns_mcp-macos-arm64.tar.gz
+            binary: image_to_icns_mcp
+          - runner: macos-15
+            target: x86_64-apple-darwin
+            asset: image_to_icns_mcp-macos-x86_64
+            archive: image_to_icns_mcp-macos-x86_64.tar.gz
+            binary: image_to_icns_mcp
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+            asset: image_to_icns_mcp-windows-x86_64
+            archive: image_to_icns_mcp-windows-x86_64.zip
+            binary: image_to_icns_mcp.exe
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust target
+        shell: bash
+        run: |
+          rustup toolchain install 1.95 --profile minimal
+          rustup target add "${TARGET}" --toolchain 1.95
+        env:
+          TARGET: ${{ matrix.target }}
+
+      - name: Build MCP server
+        shell: bash
+        run: cargo build --release --locked -p image_to_icns_mcp --target "${TARGET}"
+        env:
+          TARGET: ${{ matrix.target }}
+
+      - name: Package Unix archive
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          package_dir="staging/${ASSET}"
+          mkdir -p "${package_dir}" dist
+          cp "target/${TARGET}/release/${BINARY}" "${package_dir}/"
+          cp LICENSE README.md README.zh-CN.md CHANGELOG.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md rust-toolchain.toml "${package_dir}/"
+          cp -R docs "${package_dir}/docs"
+          (cd staging && tar -czf "../dist/${ASSET}.tar.gz" "${ASSET}")
+          cd dist
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${ASSET}.tar.gz" > "${ASSET}.tar.gz.sha256"
+          else
+            shasum -a 256 "${ASSET}.tar.gz" > "${ASSET}.tar.gz.sha256"
+          fi
+        env:
+          ASSET: ${{ matrix.asset }}
+          BINARY: ${{ matrix.binary }}
+          TARGET: ${{ matrix.target }}
+
+      - name: Package Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $packageDir = "staging/${env:ASSET}"
+          $archiveName = "${env:ASSET}.zip"
+          New-Item -ItemType Directory -Path $packageDir, dist -Force | Out-Null
+          Copy-Item "target/${env:TARGET}/release/${env:BINARY}" $packageDir
+          Copy-Item LICENSE, README.md, README.zh-CN.md, CHANGELOG.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, rust-toolchain.toml $packageDir
+          Copy-Item docs "${packageDir}/docs" -Recurse
+          Compress-Archive -Path $packageDir -DestinationPath "dist/${archiveName}"
+          $hash = (Get-FileHash "dist/${archiveName}" -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksum = "${hash}  ${archiveName}`n"
+          [IO.File]::WriteAllText("$PWD/dist/${archiveName}.sha256", $checksum, [Text.UTF8Encoding]::new($false))
+        env:
+          ASSET: ${{ matrix.asset }}
+          BINARY: ${{ matrix.binary }}
+          TARGET: ${{ matrix.target }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/*
+          if-no-files-found: error
+
+  sbom:
+    name: Generate release SBOMs
+    needs: [preflight, validate, quality]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: rustup toolchain install 1.95 --profile minimal
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --version 0.5.9 --locked
+
+      - name: Generate CycloneDX SBOMs
+        run: |
+          mkdir -p dist
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          export SOURCE_DATE_EPOCH
+
+          targets=(
+            x86_64-unknown-linux-gnu
+            aarch64-apple-darwin
+            x86_64-apple-darwin
+            x86_64-pc-windows-msvc
+          )
+          assets=(
+            image_to_icns_mcp-linux-x86_64
+            image_to_icns_mcp-macos-arm64
+            image_to_icns_mcp-macos-x86_64
+            image_to_icns_mcp-windows-x86_64
+          )
+
+          for index in "${!targets[@]}"; do
+            target="${targets[${index}]}"
+            asset="${assets[${index}]}"
+            source="crates/image_to_icns_mcp/image_to_icns_mcp_bin_${target}.cdx.json"
+            destination="dist/${asset}.cdx.json"
+
+            cargo --locked cyclonedx \
+              --format json \
+              --describe binaries \
+              --target "${target}" \
+              --target-in-filename \
+              --spec-version 1.5
+
+            test -f "${source}"
+            old_ref="$(jq -er '.metadata.component["bom-ref"]' "${source}")"
+            normalized_ref="pkg:cargo/image_to_icns_mcp@${GITHUB_REF_NAME#v}"
+            serial_number="$(python3 -c \
+              'import sys, uuid; print(f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, sys.argv[1])}")' \
+              "https://github.com/${GITHUB_REPOSITORY}@${GITHUB_SHA}#${target}")"
+
+            jq \
+              --arg old_ref "${old_ref}" \
+              --arg normalized_ref "${normalized_ref}" \
+              --arg serial_number "${serial_number}" '
+              .serialNumber = $serial_number
+              | .metadata.component["bom-ref"] = $normalized_ref
+              | .metadata.component.purl = $normalized_ref
+              | .dependencies |= map(
+                  if .ref == $old_ref then .ref = $normalized_ref else . end
+                )
+            ' "${source}" > "${destination}"
+
+            jq -e --arg version "${GITHUB_REF_NAME#v}" '
+              .bomFormat == "CycloneDX"
+              and .specVersion == "1.5"
+              and (.serialNumber | test(
+                "^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              ))
+              and .metadata.component.name == "image_to_icns_mcp"
+              and .metadata.component.version == $version
+              and (.components | length > 0)
+              and (.dependencies | length > 0)
+            ' "${destination}" >/dev/null
+
+            if grep -Eq 'path\+file:|download_url=file:' "${destination}"; then
+              printf 'SBOM contains a checkout-local package reference: %s\n' \
+                "${destination}" >&2
+              exit 1
+            fi
+
+            (cd dist && sha256sum "${asset}.cdx.json" \
+              > "${asset}.cdx.json.sha256")
+          done
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-sboms
+          path: dist/*
+          if-no-files-found: error
+
+  attest:
+    name: Attest ${{ matrix.archive }}
+    needs: [build, sbom]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - asset: image_to_icns_mcp-linux-x86_64
+            archive: image_to_icns_mcp-linux-x86_64.tar.gz
+          - asset: image_to_icns_mcp-macos-arm64
+            archive: image_to_icns_mcp-macos-arm64.tar.gz
+          - asset: image_to_icns_mcp-macos-x86_64
+            archive: image_to_icns_mcp-macos-x86_64.tar.gz
+          - asset: image_to_icns_mcp-windows-x86_64
+            archive: image_to_icns_mcp-windows-x86_64.zip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ matrix.asset }}
+          path: attest-assets
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-sboms
+          path: attest-assets
+
+      - name: Verify subject and SBOM checksums
+        env:
+          ARCHIVE: ${{ matrix.archive }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          cd attest-assets
+          sha256sum --check --strict -- \
+            "${ARCHIVE}.sha256" "${ASSET}.cdx.json.sha256"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: attest-assets/${{ matrix.archive }}
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3
+        with:
+          subject-path: attest-assets/${{ matrix.archive }}
+          sbom-path: attest-assets/${{ matrix.asset }}.cdx.json
+
+  release:
+    name: Publish GitHub Release
+    needs: attest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify checksums
+        run: |
+          cd release-assets
+          asset_count="$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          if [[ "${asset_count}" != 16 ]]; then
+            printf 'Expected 16 release assets, found %s.\n' \
+              "${asset_count}" >&2
+            exit 1
+          fi
+          sha256sum --check --strict -- ./*.sha256
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          status="$(curl --proto '=https' --tlsv1.2 --silent --show-error \
+            --output /dev/null --write-out '%{http_code}' \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GH_REPO}/releases/tags/${TAG}")"
+
+          if [[ "${status}" != 404 ]]; then
+            printf 'Refusing to publish %s: release lookup returned HTTP %s.\n' \
+              "${TAG}" "${status}" >&2
+            exit 1
+          fi
+
+          gh release create "${TAG}" release-assets/* \
+            --generate-notes --verify-tag --title "${TAG}"

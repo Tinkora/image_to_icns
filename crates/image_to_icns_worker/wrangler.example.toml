@@ -1,0 +1,17 @@
+name = "image-to-icns-worker"
+main = "build/worker/shim.mjs"
+compatibility_date = "2025-08-06"
+
+[build]
+command = "worker-build --release"
+
+[[d1_databases]]
+binding = "ICNS_DB"
+database_name = "image-to-icns-sessions"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+EDITOR_BASE_URL = "http://localhost:4173"
+
+[triggers]
+crons = ["*/5 * * * *"]

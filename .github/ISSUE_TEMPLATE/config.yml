@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/Tinkora/image_to_icns#readme
+    about: Read the documentation for setup and troubleshooting
+  - name: Security vulnerability
+    url: https://github.com/Tinkora/image_to_icns/security/advisories/new
+    about: Report a vulnerability through GitHub's private security flow

@@ -1,0 +1,12 @@
+# Code Owners — automatically request review from these maintainers
+# Order matters; the last matching pattern takes precedence.
+
+* @tinkeragora
+
+# Core library — stricter review
+crates/image_to_icns_core/ @tinkeragora
+
+# Security-sensitive paths
+crates/image_to_icns_worker/src/session.rs @tinkeragora
+crates/image_to_icns_mcp/src/ @tinkeragora
+SECURITY.md @tinkeragora

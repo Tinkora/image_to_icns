@@ -1,0 +1,118 @@
+name: quality
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-quality:
+    name: Rust quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: >-
+          rustup toolchain install 1.95 --profile minimal
+          --component rustfmt --component clippy
+
+      - name: Check release validator
+        run: bash scripts/test_validate_release.sh
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint workspace
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Test workspace
+        run: cargo test --workspace --locked
+
+  web-worker:
+    name: Web and Worker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust and wasm32 target
+        run: |
+          rustup toolchain install 1.95 --profile minimal --component rustfmt --component clippy
+          rustup target add wasm32-unknown-unknown --toolchain 1.95
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --version 0.15.0 --locked
+
+      - name: Test Core WebAssembly API
+        run: wasm-pack test --node crates/image_to_icns_core --locked
+
+      - name: Test Web frontend modules
+        run: node --test crates/image_to_icns_web/tests/*.test.mjs
+
+      - name: Build Web release
+        run: ./scripts/build_web.sh
+
+      - name: Check Worker formatting
+        run: cargo fmt --manifest-path crates/image_to_icns_worker/Cargo.toml -- --check
+
+      - name: Test Worker host logic
+        run: cargo test --manifest-path crates/image_to_icns_worker/Cargo.toml --locked
+
+      - name: Test Worker WebAssembly responses
+        run: wasm-pack test --node crates/image_to_icns_worker --locked
+
+      - name: Lint Worker for wasm32
+        run: >-
+          cargo clippy --manifest-path crates/image_to_icns_worker/Cargo.toml
+          --target wasm32-unknown-unknown --locked -- -D warnings
+
+  macos-core:
+    name: macOS core
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: >-
+          rustup toolchain install 1.95 --profile minimal
+          --component clippy
+
+      - name: Test macOS decoding path
+        run: cargo test -p image_to_icns_core --locked
+
+      - name: Lint macOS decoding path
+        run: cargo clippy -p image_to_icns_core --all-targets --locked -- -D warnings
+
+  documentation-and-workflows:
+    name: Documentation and workflows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
+
+      - name: Audit GitHub Actions
+        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        with:
+          version: 1.29.0
+          collect: workflows
+          online-audits: false
+          advanced-security: false
+          annotations: true

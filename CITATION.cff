@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: image_to_icns
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - name: Tinkora contributors
+    website: 'https://github.com/Tinkora'
+repository-code: 'https://github.com/Tinkora/image_to_icns'
+url: 'https://tinkora.github.io/image_to_icns/'
+abstract: >-
+  Privacy-first browser-native macOS .icns icon generator using Rust and
+  WebAssembly. Converts PNG/JPEG/SVG images into complete, verified .icns
+  files entirely in the browser — no uploads required.
+keywords:
+  - icns
+  - macos
+  - icon
+  - rust
+  - webassembly
+  - wasm
+  - privacy
+  - image-processing
+license: MIT
+version: 0.1.0
+date-released: '2026-08-09'

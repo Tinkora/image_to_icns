@@ -1,0 +1,13 @@
+{
+  "ignores": [
+    ".codex/**",
+    ".playwright-cli/**",
+    "crates/image_to_icns_web/pkg/**",
+    "crates/image_to_icns_worker/target/**",
+    "dist/**",
+    "target/**"
+  ],
+  "config": {
+    "MD013": false
+  }
+}

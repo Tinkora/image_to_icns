@@ -1,0 +1,56 @@
+{
+  "name": "image_to_icns",
+  "version": "0.1.0",
+  "description": "Create short-lived browser sessions for local macOS ICNS conversion.",
+  "tools": [
+    {
+      "name": "create_icns_session",
+      "description": "Create a short-lived ICNS conversion session. Returns an editor URL where the user imports, crops, generates, and downloads an ICNS file locally in the browser.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source_format": {
+            "type": "string",
+            "enum": ["png", "jpeg", "svg"],
+            "description": "Optional source image format hint."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "query_icns_session",
+      "description": "Read the current Session state and, after completion, the output byte length and ICNS representation count.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "The 64-character hexadecimal Session identifier."
+          }
+        },
+        "required": ["session_id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cancel_icns_session",
+      "description": "Mark an active Session as cancelled using the secret from the editor URL fragment.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "The 64-character hexadecimal Session identifier."
+          },
+          "secret": {
+            "type": "string",
+            "description": "The 128-character hexadecimal secret from the editor URL fragment."
+          }
+        },
+        "required": ["session_id", "secret"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
