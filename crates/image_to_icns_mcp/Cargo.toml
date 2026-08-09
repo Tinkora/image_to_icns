@@ -1,0 +1,21 @@
+[package]
+name = "image_to_icns_mcp"
+version = "0.1.0"
+description = "MCP session server for the image_to_icns browser editor"
+publish = false
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "image_to_icns_mcp"
+path = "src/main.rs"
+
+[dependencies]
+futures-util = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "time"] }
+clap = { version = "4", features = ["derive"] }

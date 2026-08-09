@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light">
+    <meta name="referrer" content="no-referrer">
+    <title>image_to_icns - ICNS generator</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="app-header">
+        <a class="brand" href="./" aria-label="image_to_icns home">
+            <img src="favicon.svg" alt="" width="30" height="30">
+            <span>image_to_icns</span>
+        </a>
+        <nav aria-label="Project links">
+            <span class="privacy-status">Local processing</span>
+            <a href="https://github.com/Tinkora/image_to_icns" target="_blank" rel="noopener noreferrer">Source</a>
+        </nav>
+    </header>
+
+    <main class="app-main">
+        <section id="step-import" class="import-view" aria-labelledby="import-title">
+            <div class="import-heading">
+                <p class="section-label">New conversion</p>
+                <h1 id="import-title">Create a macOS icon</h1>
+            </div>
+            <button id="drop-zone" type="button" aria-describedby="format-hint">
+                <span class="drop-title">Select an image</span>
+                <span id="format-hint" class="format-hint">PNG, JPEG, or SVG</span>
+            </button>
+            <input type="file" id="file-input" accept="image/png,image/jpeg,image/svg+xml" hidden>
+            <div id="import-error" class="message error hidden" role="alert"></div>
+        </section>
+
+        <div id="editor-workspace" class="workspace hidden">
+            <section id="step-crop" class="preview-pane" aria-labelledby="crop-title">
+                <header class="pane-header">
+                    <div>
+                        <p class="section-label">Preview</p>
+                        <h1 id="crop-title" tabindex="-1">Crop image</h1>
+                    </div>
+                    <button id="replace-btn" class="button secondary" type="button">Replace image</button>
+                </header>
+                <div class="canvas-stage">
+                    <canvas id="preview-canvas" width="512" height="512" tabindex="0" aria-label="Square icon crop preview. Use arrow keys to reposition the image."></canvas>
+                </div>
+            </section>
+
+            <aside id="step-export" class="controls-pane" aria-label="Icon controls">
+                <section class="control-group" aria-labelledby="crop-controls-title">
+                    <h2 id="crop-controls-title">Crop</h2>
+                    <div class="field-row">
+                        <label for="zoom-slider">Zoom</label>
+                        <output id="zoom-value" for="zoom-slider">1.00x</output>
+                    </div>
+                    <input type="range" id="zoom-slider" min="1" max="5" step="0.01" value="1">
+                    <p id="source-dims" class="source-meta"></p>
+                </section>
+
+                <section class="control-group export-group" aria-labelledby="export-title">
+                    <h2 id="export-title">Export</h2>
+                    <button id="generate-btn" class="button primary" type="button">Generate ICNS</button>
+                    <div id="export-status" class="message hidden" role="status" aria-live="polite"></div>
+                    <button id="download-btn" class="button download hidden" type="button">Download .icns</button>
+                </section>
+            </aside>
+        </div>
+    </main>
+
+    <footer class="app-footer">
+        <span>Source files remain in this browser tab.</span>
+        <span>Tinkora / MIT</span>
+    </footer>
+
+    <script type="module" src="editor.js"></script>
+</body>
+</html>

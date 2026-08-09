@@ -1,0 +1,47 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Codex / AI agent logs
+.codex/
+.playwright-cli/
+output/playwright/
+
+# Rust build
+target/
+*.tmp
+*.rs.bk
+
+# WASM builds
+crates/image_to_icns_web/pkg/
+wasm-pack.log
+/dist/
+
+# Node (if any local tooling)
+node_modules/
+package-lock.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Cloudflare
+.wrangler/
+worker-build/
+crates/image_to_icns_worker/wrangler.toml
+
+# OS
+Thumbs.db
+
+# AI agent session data
+.reasonix/
