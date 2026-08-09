@@ -9,7 +9,10 @@ import {
     centerAfterCanvasPan,
     keyboardPanDelta,
 } from "./editor-controls.mjs";
-import { readSessionParams } from "./session-url.mjs";
+import {
+    buildSessionEndpoint,
+    readSessionParams,
+} from "./session-url.mjs";
 
 // ── State ────────────────────────────────────────────────
 /** @type {Editor|null} */
@@ -285,7 +288,8 @@ async function patchSessionState(state, extra = {}) {
         secret: sessionSecret,
         ...extra,
     };
-    const resp = await fetch(`${workerBaseUrl}/sessions/${sessionId}`, {
+    const endpoint = buildSessionEndpoint(workerBaseUrl, sessionId);
+    const resp = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

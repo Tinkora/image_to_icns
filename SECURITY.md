@@ -35,6 +35,16 @@ not sent to the web host, Worker, or referrer targets. State-changing Worker
 requests send the secret in a JSON body over HTTPS. Session records expire
 after 30 minutes, and terminal records are deleted after 24 hours.
 
+Session state in a URL query is removed from browser history and rejected. A
+query reaches the web host before client code can clean it, so it is never an
+accepted compatibility path for a Session secret.
+
+The editor accepts Session callbacks only when its trusted deployment
+`config.js` defines the exact Worker origin. A link-provided Worker origin must
+match that configuration, and Session IDs and secrets must match their fixed
+lowercase hexadecimal formats before any request URL is built. The public
+Tinkora editor leaves Session callbacks disabled.
+
 ## In scope
 
 - Source-image or generated-file disclosure

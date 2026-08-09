@@ -50,6 +50,13 @@ Build and serve the editor from the repository root:
 python3 -m http.server 4173 --directory dist
 ```
 
+The default `dist/config.js` disables Session callbacks. For local development,
+set its trusted deployment value before opening a Session link:
+
+```javascript
+globalThis.__ICNS_WORKER_URL__ = "http://127.0.0.1:8787";
+```
+
 In another terminal, from `crates/image_to_icns_worker`:
 
 ```bash
@@ -65,13 +72,23 @@ curl --request POST http://127.0.0.1:8787/sessions \
 ```
 
 The returned `editor_url` contains the Session ID, secret, and Worker origin in
-the URL fragment. Open it in a browser. The editor reports `editing` when it
-loads and `completed` after the generated file is downloaded.
+the URL fragment. Open it in a browser. The editor accepts the link only when
+its Worker origin matches the trusted `config.js` value, then reports `editing`
+when it loads and `completed` after the generated file is downloaded.
 
 ## Deploy
 
 Set `EDITOR_BASE_URL` in `wrangler.toml` to the HTTPS origin and path of the
-deployed editor. Then apply the migration and deploy:
+deployed editor. Set the deployed editor's `config.js` to the exact public
+Worker origin using HTTPS:
+
+```javascript
+globalThis.__ICNS_WORKER_URL__ = "https://your-worker.example.com";
+```
+
+The repository default is `null` and is what Tinkora Pages publishes. Treat
+`config.js` as trusted deployment code: do not derive it from URL parameters or
+other request data. Then apply the migration and deploy:
 
 ```bash
 npx wrangler d1 migrations apply image-to-icns-sessions --remote
@@ -85,7 +102,9 @@ image_to_icns_mcp --worker-url https://your-worker.example.com
 ```
 
 The Worker derives its public origin from each create request and places that
-origin in the editor URL. No separate Worker URL variable is required.
+origin in the editor URL. The value is an equality check for the editor's
+trusted deployment configuration, not a way for a link to choose a request
+target.
 
 ## API
 

@@ -10,6 +10,7 @@ wasm-pack build "${web_crate}" --target web --release --locked
 rm -rf "${output_dir}"
 mkdir -p "${output_dir}/pkg"
 cp "${web_crate}/static/index.html" "${output_dir}/index.html"
+cp "${web_crate}/static/config.js" "${output_dir}/config.js"
 cp "${web_crate}/static/editor.js" "${output_dir}/editor.js"
 cp "${web_crate}/static/editor-controls.mjs" "${output_dir}/editor-controls.mjs"
 cp "${web_crate}/static/session-url.mjs" "${output_dir}/session-url.mjs"

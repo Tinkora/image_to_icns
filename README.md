@@ -109,7 +109,9 @@ checks its WebAssembly `Response` boundary.
 ## Optional MCP sessions
 
 The MCP binary requires a deployed Session Worker. It defaults to a local
-Worker at `http://localhost:8787`.
+Worker at `http://localhost:8787`. The editor deployment must pin that same
+Worker origin in its trusted `config.js`; a Session link cannot select an
+arbitrary request target.
 
 ```json
 {

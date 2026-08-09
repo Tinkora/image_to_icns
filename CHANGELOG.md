@@ -20,4 +20,10 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - English and Simplified Chinese README files.
 - Pinned GitHub Actions for Rust checks, WASM builds, Pages, and releases.
 
+### Security
+
+- Restricted optional Session callbacks to a deployment-configured Worker
+  origin, rejected query-carried credentials, and validated fixed-format
+  Session credentials before constructing a request URL.
+
 [0.1.0]: https://github.com/Tinkora/image_to_icns/releases/tag/v0.1.0

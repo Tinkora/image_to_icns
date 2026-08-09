@@ -4,10 +4,6 @@ export function readSessionParams(location, history, configuredWorker) {
     const queryParams = new URLSearchParams(location.search);
     const fragmentContainsSessionState = containsSessionState(fragmentParams);
     const queryContainsSessionState = containsSessionState(queryParams);
-    const params = fragmentContainsSessionState ? fragmentParams : queryParams;
-    const sessionId = params.get("session");
-    const sessionSecret = params.get("secret");
-    const worker = configuredWorker || params.get("worker");
 
     if (fragmentContainsSessionState || queryContainsSessionState) {
         queryParams.delete("session");
@@ -19,10 +15,44 @@ export function readSessionParams(location, history, configuredWorker) {
         history.replaceState(history.state, "", cleanUrl);
     }
 
+    if (queryContainsSessionState) {
+        throw new Error("Session credentials must use the URL fragment");
+    }
+
+    const sessionId = fragmentParams.get("session");
+    const sessionSecret = fragmentParams.get("secret");
+    const requestedWorker = fragmentParams.get("worker");
+
+    const workerBaseUrl = configuredWorker
+        ? normalizeWorkerBaseUrl(configuredWorker)
+        : null;
+    const requestedWorkerBaseUrl = requestedWorker
+        ? normalizeWorkerBaseUrl(requestedWorker)
+        : null;
+
+    if (requestedWorkerBaseUrl && !workerBaseUrl) {
+        throw new Error("Session mode requires a configured Worker URL");
+    }
+    if (requestedWorkerBaseUrl && requestedWorkerBaseUrl !== workerBaseUrl) {
+        throw new Error("Session link Worker URL does not match the configured Worker URL");
+    }
+    if (sessionId !== null && !isValidSessionId(sessionId)) {
+        throw new Error("Session ID must be 64 lowercase hexadecimal characters");
+    }
+    if (sessionSecret !== null && !isValidSessionSecret(sessionSecret)) {
+        throw new Error("Session secret must be 128 lowercase hexadecimal characters");
+    }
+    if ((sessionId === null) !== (sessionSecret === null)) {
+        throw new Error("Session link must include both an ID and secret");
+    }
+    if (sessionId && !workerBaseUrl) {
+        throw new Error("Session mode requires a configured Worker URL");
+    }
+
     return {
         sessionId,
         sessionSecret,
-        workerBaseUrl: worker ? normalizeWorkerBaseUrl(worker) : null,
+        workerBaseUrl,
     };
 }
 
@@ -41,5 +71,25 @@ export function normalizeWorkerBaseUrl(value) {
     if (url.username || url.password || url.search || url.hash) {
         throw new Error("Worker URL must not contain credentials, query, or fragment");
     }
-    return url.href.replace(/\/$/, "");
+    if (url.pathname !== "/") {
+        throw new Error("Worker URL must be an origin without a path");
+    }
+    return url.origin;
+}
+
+/** Build the only endpoint used for a validated Session mutation. */
+export function buildSessionEndpoint(workerBaseUrl, sessionId) {
+    if (!isValidSessionId(sessionId)) {
+        throw new Error("Session ID must be 64 lowercase hexadecimal characters");
+    }
+    const workerOrigin = normalizeWorkerBaseUrl(workerBaseUrl);
+    return `${workerOrigin}/sessions/${sessionId}`;
+}
+
+function isValidSessionId(value) {
+    return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+}
+
+function isValidSessionSecret(value) {
+    return typeof value === "string" && /^[0-9a-f]{128}$/.test(value);
 }

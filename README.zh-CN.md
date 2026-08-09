@@ -100,7 +100,8 @@ Worker 的 `wasm-pack` 命令则单独检查其 WebAssembly `Response` 边界。
 ## 可选 MCP Session
 
 MCP 二进制需要已经部署的 Session Worker，默认连接本机
-`http://localhost:8787`。
+`http://localhost:8787`。Editor 部署还必须在可信的 `config.js` 中固定同一个
+Worker origin；Session 链接不能自行选择任意请求目标。
 
 ```json
 {
