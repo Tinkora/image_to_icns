@@ -4,13 +4,22 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Stable release tag to validate without publishing
+        required: true
+        type: string
 
 concurrency:
-  group: release-${{ github.repository }}-${{ github.ref_name }}
+  group: release-${{ github.repository }}-${{ inputs.release_tag || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
   contents: read
+
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
 jobs:
   preflight:
@@ -29,13 +38,13 @@ jobs:
             --header "Accept: application/vnd.github+json" \
             --header "Authorization: Bearer ${GH_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}")"
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}")"
 
           case "${status}" in
             404) ;;
             200)
               printf 'Release %s already exists; release assets are immutable.\n' \
-                "${GITHUB_REF_NAME}" >&2
+                "${RELEASE_TAG}" >&2
               exit 1
               ;;
             *)
@@ -60,7 +69,7 @@ jobs:
         run: rustup toolchain install 1.95 --profile minimal
 
       - name: Validate tag and release metadata
-        run: ./scripts/validate_release.sh "${GITHUB_REF_NAME}"
+        run: ./scripts/validate_release.sh "${RELEASE_TAG}"
 
   quality:
     uses: ./.github/workflows/quality.yml
@@ -216,7 +225,7 @@ jobs:
 
             test -f "${source}"
             old_ref="$(jq -er '.metadata.component["bom-ref"]' "${source}")"
-            normalized_ref="pkg:cargo/image_to_icns_mcp@${GITHUB_REF_NAME#v}"
+            normalized_ref="pkg:cargo/image_to_icns_mcp@${RELEASE_TAG#v}"
             serial_number="$(python3 -c \
               'import sys, uuid; print(f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, sys.argv[1])}")' \
               "https://github.com/${GITHUB_REPOSITORY}@${GITHUB_SHA}#${target}")"
@@ -233,7 +242,7 @@ jobs:
                 )
             ' "${source}" > "${destination}"
 
-            jq -e --arg version "${GITHUB_REF_NAME#v}" '
+            jq -e --arg version "${RELEASE_TAG#v}" '
               .bomFormat == "CycloneDX"
               and .specVersion == "1.5"
               and (.serialNumber | test(
@@ -316,14 +325,13 @@ jobs:
           subject-path: attest-assets/${{ matrix.archive }}
           sbom-path: attest-assets/${{ matrix.asset }}.cdx.json
 
-  release:
-    name: Publish GitHub Release
+  verify:
+    name: Verify release assets
     needs: attest
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    environment: release
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -342,11 +350,38 @@ jobs:
           fi
           sha256sum --check --strict -- ./*.sha256
 
+  release:
+    name: Publish GitHub Release
+    needs: verify
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Reverify checksums
+        run: |
+          cd release-assets
+          asset_count="$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          if [[ "${asset_count}" != 16 ]]; then
+            printf 'Expected 16 release assets, found %s.\n' \
+              "${asset_count}" >&2
+            exit 1
+          fi
+          sha256sum --check --strict -- ./*.sha256
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ env.RELEASE_TAG }}
         run: |
           status="$(curl --proto '=https' --tlsv1.2 --silent --show-error \
             --output /dev/null --write-out '%{http_code}' \
@@ -362,4 +397,5 @@ jobs:
           fi
 
           gh release create "${TAG}" release-assets/* \
-            --generate-notes --verify-tag --title "${TAG}"
+            --draft --generate-notes --verify-tag --title "${TAG}"
+          gh release edit "${TAG}" --draft=false

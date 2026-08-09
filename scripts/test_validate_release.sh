@@ -132,6 +132,20 @@ assert_contract(
   "release concurrency must be scoped by tag"
 )
 
+triggers = workflow.key?("on") ? workflow.fetch("on") : workflow.fetch(true)
+dispatch_input = triggers.dig("workflow_dispatch", "inputs", "release_tag")
+assert_contract(
+  dispatch_input.is_a?(Hash) &&
+    dispatch_input.fetch("required") == true &&
+    dispatch_input.fetch("type") == "string",
+  "manual release canaries must require an explicit release_tag"
+)
+assert_contract(
+  workflow.dig("env", "RELEASE_TAG").to_s.include?("inputs.release_tag") &&
+    workflow.dig("env", "RELEASE_TAG").to_s.include?("github.ref_name"),
+  "release metadata must resolve consistently for tag pushes and canaries"
+)
+
 expected_job_permissions = {
   "preflight" => { "contents" => "read" },
   "validate" => { "contents" => "read" },
@@ -143,6 +157,7 @@ expected_job_permissions = {
     "id-token" => "write",
     "attestations" => "write"
   },
+  "verify" => { "contents" => "read" },
   "release" => { "contents" => "write" }
 }
 
@@ -181,8 +196,51 @@ assert_contract(
   "attestations must use completed archives and SBOMs"
 )
 assert_contract(
-  jobs.fetch("release").fetch("needs") == "attest",
-  "publication must depend on all attestations"
+  jobs.fetch("verify").fetch("needs") == "attest",
+  "asset verification must depend on all attestations"
+)
+assert_contract(
+  jobs.fetch("release").fetch("needs") == "verify",
+  "publication must depend on the complete asset verification"
+)
+assert_contract(
+  jobs.fetch("release").fetch("if") ==
+    "${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}",
+  "only a v* tag push may publish a release"
+)
+
+verify_steps = jobs.fetch("verify").fetch("steps")
+verify_download = verify_steps.find do |step|
+  step["uses"]&.start_with?("actions/download-artifact@")
+end
+assert_contract(
+  verify_download&.dig("with", "path") == "release-assets" &&
+    verify_download&.dig("with", "merge-multiple") == true,
+  "asset verification must merge every build and SBOM artifact"
+)
+verify_run = verify_steps.find { |step| step["name"] == "Verify checksums" }&.fetch("run", "")
+assert_contract(
+  verify_run.include?('"${asset_count}" != 16') &&
+    verify_run.include?("sha256sum --check --strict -- ./*.sha256"),
+  "asset verification must require 16 files and validate every checksum"
+)
+
+release_steps = jobs.fetch("release").fetch("steps")
+release_download = release_steps.find do |step|
+  step["uses"]&.start_with?("actions/download-artifact@")
+end
+assert_contract(
+  release_download&.dig("with", "path") == "release-assets" &&
+    release_download&.dig("with", "merge-multiple") == true,
+  "publication must download the complete verified artifact set"
+)
+release_verify_run = release_steps.find do |step|
+  step["name"] == "Reverify checksums"
+end&.fetch("run", "")
+assert_contract(
+  release_verify_run.include?('"${asset_count}" != 16') &&
+    release_verify_run.include?("sha256sum --check --strict -- ./*.sha256"),
+  "publication must independently reverify all 16 release files"
 )
 
 expected_archives = %w[
@@ -249,11 +307,20 @@ assert_contract(
   workflow_text.include?(".cdx.json.sha256"),
   "published SBOMs must have SHA-256 checksum files"
 )
+publish_run = release_steps.find { |step| step["name"] == "Publish release" }&.fetch("run", "")
+create_index = publish_run.index("gh release create")
+edit_index = publish_run.index("gh release edit")
 assert_contract(
-  workflow_text.include?("gh release create") &&
-    workflow_text.include?("--generate-notes") &&
-    workflow_text.include?("--verify-tag"),
-  "final publication must create a verified-tag release"
+  create_index && edit_index && create_index < edit_index &&
+    publish_run.include?("--draft") &&
+    publish_run.include?("--generate-notes") &&
+    publish_run.include?("--verify-tag"),
+  "publication must create a verified-tag draft before attaching assets"
+)
+assert_contract(
+  publish_run.include?("gh release edit") &&
+    publish_run.include?("--draft=false"),
+  "publication must publish only after the complete draft is assembled"
 )
 
 puts "Release workflow supply-chain contract passed."

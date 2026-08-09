@@ -19,6 +19,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - MCP stdio server with create, query, and cancel Session tools.
 - English and Simplified Chinese README files.
 - Pinned GitHub Actions for Rust checks, WASM builds, Pages, and releases.
+- A non-publishing cross-platform release canary and native immutable Release
+  publication through a fully assembled draft.
 
 ### Security
 

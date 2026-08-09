@@ -15,6 +15,8 @@ Before pushing a release tag, verify all of these repository controls:
   stage it records the publication boundary without pretending that self-review
   is independent approval;
 - tag rules prevent deletion, update, and force-push of `v*` tags;
+- GitHub Immutable Releases is enabled for the repository so published tags and
+  assets receive platform-enforced protection and a release attestation;
 - the release commit is on protected `main` and all required checks passed;
 - the current owner has explicitly authorized the tag after reviewing the exact
   commit and successful checks.
@@ -33,14 +35,38 @@ revocation flow before enabling multi-maintainer publication.
 5. Review licenses, dependencies, security, privacy, compatibility, and any
    required upgrade, downgrade, rollback, or deprecation notes.
 6. Obtain review of the exact release commit.
-7. Create and push the immutable `vMAJOR.MINOR.PATCH` tag only after explicit
+7. Run the release workflow manually against that exact commit and provide the
+   intended stable tag as `release_tag`. This canary must build all four target
+   archives, generate four SBOMs, create both attestations for every archive,
+   verify all 16 files and checksums, and skip the publication job.
+8. Create and push the immutable `vMAJOR.MINOR.PATCH` tag only after explicit
    release authorization.
+
+Start the canary without creating a tag or Release:
+
+```bash
+gh workflow run release.yml \
+  --repo Tinkora/image_to_icns \
+  --ref main \
+  -f release_tag=v0.1.0
+gh run list \
+  --repo Tinkora/image_to_icns \
+  --workflow release.yml \
+  --event workflow_dispatch \
+  --limit 1
+```
+
+The canary is valid only for the commit it tested. Rerun it after any change to
+the release commit, workflow, package metadata, dependencies, or release
+documentation.
 
 The tag workflow first rejects an existing Release with the same tag. It then
 runs metadata validation and the complete reusable quality workflow before
 building or generating release material. A second absence check immediately
 before publication prevents a concurrent or manual Release from being
-overwritten.
+overwritten. The workflow creates a draft with all verified assets and publishes
+it only after every upload succeeds; publication activates GitHub's native
+immutability controls.
 
 ## Release inventory
 
@@ -116,6 +142,10 @@ the signed SBOM attestation binds that document to the archive digest.
 Published tags and assets are immutable. Do not rerun the workflow to replace
 an archive, move the tag, or use an upload overwrite option. Fix a broken build
 or release note in source and publish a higher version that supersedes it.
+
+If a run fails after creating a draft but before publishing it, inspect and
+delete only that draft, then rerun the failed workflow against the unchanged
+tag. Never delete or move the tag as part of recovery.
 
 If an artifact is compromised, remove access only as needed to protect users,
 publish an incident notice that does not expose sensitive investigation data,
