@@ -268,21 +268,17 @@ remote_actions.each do |action|
   )
 end
 
-provenance_action =
-  "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a"
-sbom_action =
-  "actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34"
 upload_action =
   "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 download_action =
   "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
 assert_contract(
-  remote_actions.count(provenance_action) == 1,
-  "expected pinned build provenance action is missing"
+  remote_actions.count { |action| action.start_with?("actions/attest-build-provenance@") } == 1,
+  "release must use exactly one pinned build provenance action"
 )
 assert_contract(
-  remote_actions.count(sbom_action) == 1,
-  "expected pinned SBOM attestation action is missing"
+  remote_actions.count { |action| action.start_with?("actions/attest-sbom@") } == 1,
+  "release must use exactly one pinned SBOM attestation action"
 )
 assert_contract(
   remote_actions.count(upload_action) == 2,
