@@ -15,12 +15,13 @@ updates:
       prefix: "chore(deps)"
       include: scope
     groups:
-      rust-patch:
+      rust-patch-minor:
         update-types:
           - "patch"
-      rust-minor:
-        update-types:
           - "minor"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
 
   # Rust dependencies (Worker is intentionally outside the workspace)
   - package-ecosystem: cargo
@@ -36,14 +37,33 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: scope
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
+    groups:
+      worker-patch-minor:
+        update-types:
+          - "patch"
+          - "minor"
 
   # GitHub Actions
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: monthly
+      interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: "Asia/Shanghai"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
     labels:
       - "dependencies"
       - "ci"
     commit-message:
       prefix: "chore(ci)"
+    groups:
+      actions-patch-minor:
+        update-types:
+          - "patch"
+          - "minor"
