@@ -147,6 +147,7 @@ form](https://github.com/Tinkora/image_to_icns/security/advisories/new). See
 ## Documentation
 
 - [Contribution status and development guide](CONTRIBUTING.md)
+- [Support and public intake](SUPPORT.md)
 - [Self-hosting guide](docs/SELF_HOSTING.md)
 - [ADR-0001: Browser-first architecture](docs/decisions/0001-web-first-session-architecture.md)
 - [ADR-0002: Local-only first release](docs/decisions/0002-local-only-first-release.md)

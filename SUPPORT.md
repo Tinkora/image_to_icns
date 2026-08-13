@@ -2,10 +2,11 @@
 
 ## Current support status
 
-This source-only release does not currently operate a public support, Issue, or
-Discussion channel. Use the documentation below for setup and troubleshooting.
-Public interaction will open only after Tinkora completes its documented
-moderation and reporting prerequisites.
+This release accepts public usage questions, reproducible bug reports, and
+focused feature requests through the repository's Issue forms. Discussions are
+also enabled for broader design and workflow conversations. Use the
+documentation below first, and keep secrets, private data, and vulnerability
+details out of public threads.
 
 Useful references:
 
@@ -13,6 +14,8 @@ Useful references:
 - [Simplified Chinese README](README.zh-CN.md)
 - [Self-hosting the Session Worker](docs/SELF_HOSTING.md)
 - [Architecture decisions](docs/decisions/)
+- [Issues](https://github.com/Tinkora/image_to_icns/issues)
+- [Discussions](https://github.com/Tinkora/image_to_icns/discussions)
 
 ## Security
 

@@ -133,6 +133,7 @@ D1 schema、本地开发和部署步骤见[自托管 Session Worker](docs/SELF_H
 ## 文档
 
 - [贡献状态与开发指南](CONTRIBUTING.md)
+- [支持与公开反馈](SUPPORT.zh-CN.md)
 - [自托管指南](docs/SELF_HOSTING.md)
 - [ADR-0001：浏览器优先架构](docs/decisions/0001-web-first-session-architecture.md)
 - [ADR-0002：首个版本仅本地处理](docs/decisions/0002-local-only-first-release.md)
