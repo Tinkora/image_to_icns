@@ -2,6 +2,8 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+[![在 Ko-fi 上支持 Tinkora](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/tinkora)
+
 在浏览器中将 PNG、JPEG 或 SVG 图片转换为经过校验的 macOS `.icns`
 文件。图片解码、裁剪、缩放、编码和校验均由 Rust 与 WebAssembly 在本地完成。
 

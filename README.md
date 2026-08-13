@@ -2,6 +2,8 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+[![Support Tinkora on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/tinkora)
+
 Convert PNG, JPEG, or SVG artwork into a verified macOS `.icns` file in the
 browser. Image decoding, cropping, resizing, encoding, and verification happen
 locally through Rust and WebAssembly.
